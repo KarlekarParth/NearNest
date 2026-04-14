@@ -63,10 +63,23 @@ exports.getListings = async (req, res) => {
 
             listings = listings.map(listing => {
                 const listingObj = listing.toObject();
-                if (listingObj.location && listingObj.location.lat && listingObj.location.lng) {
+                let docLat = null;
+                let docLng = null;
+                
+                if (listingObj.location) {
+                    if (listingObj.location.lat !== undefined && listingObj.location.lng !== undefined) {
+                        docLat = listingObj.location.lat;
+                        docLng = listingObj.location.lng;
+                    } else if (listingObj.location.coordinates && Array.isArray(listingObj.location.coordinates)) {
+                        docLng = listingObj.location.coordinates[0];
+                        docLat = listingObj.location.coordinates[1];
+                    }
+                }
+
+                if (docLat !== null && docLng !== null) {
                     listingObj.distance = getDistanceKm(
                         searchLat, searchLng,
-                        listingObj.location.lat, listingObj.location.lng
+                        parseFloat(docLat), parseFloat(docLng)
                     );
                 } else {
                     listingObj.distance = 9999;

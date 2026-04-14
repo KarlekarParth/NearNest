@@ -12,7 +12,7 @@ function findAndReplaceJSX(dir) {
             findAndReplaceJSX(fullPath);
         } else if (fullPath.endsWith('.jsx')) {
             let content = fs.readFileSync(fullPath, 'utf8');
-            if (content.includes('http://localhost:5000')) {
+            if (content.includes('https://nearnest-yewm.onrender.com')) {
                 // Determine relative path to config.js based on file depth
                 let relativePath = '';
                 if (fullPath.includes('pages') || fullPath.includes('components')) {
@@ -33,7 +33,7 @@ function findAndReplaceJSX(dir) {
 
                 // Replace all hardcoded parts with template literal or just string concatenation if already inside template literals
                 // Example: `http://localhost:5000/api/listings` -> `${API_BASE_URL}/api/listings`
-                content = content.replace(/http:\/\/localhost:5000/g, '${API_BASE_URL}');
+                content = content.replace(/https:\/\/nearnest-yewm\.onrender\.com/g, '${API_BASE_URL}');
                 
                 // Need to ensure replace didn't break strings that weren't backticked
                 // If it was '"http://localhost:5000/abc"', it will now be '"${API_BASE_URL}/abc"', which won't interpolate. 

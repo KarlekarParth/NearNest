@@ -15,7 +15,7 @@ const app = express();
 // ✅ CORS CONFIG (IMPORTANT)
 // =======================
 const allowedOrigins = [
-    'http://localhost:3000',
+    'https://nearnest-mu.vercel.app',
     process.env.FRONTEND_URL // Vercel URL
 ];
 
