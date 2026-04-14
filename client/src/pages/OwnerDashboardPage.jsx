@@ -2,14 +2,15 @@ import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import PickerMap from '../components/PickerMap';
+import { API_BASE_URL } from '../config';
 import { 
     LayoutGrid, PlusCircle, Trash2, Edit3, CheckCircle, 
     XCircle, Loader2, MapPin, IndianRupee, Image as ImageIcon, 
     Plus, X, Calendar, MessageCircle, User as UserIcon, Clock, Camera
 } from 'lucide-react';
 
-const LISTING_API = 'http://localhost:5000/api/listings';
-const BOOKING_API = 'http://localhost:5000/api/bookings';
+const LISTING_API = `${API_BASE_URL}/api/listings`;
+const BOOKING_API = `${API_BASE_URL}/api/bookings`;
 
 const OwnerDashboardPage = () => {
     const { user, token } = useAuth();

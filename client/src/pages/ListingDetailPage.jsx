@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import MapView from '../components/MapView';
 import { useAuth } from '../context/AuthContext';
+import { API_BASE_URL } from '../config';
 
 const ListingDetailPage = () => {
     const { id } = useParams();
@@ -33,7 +34,7 @@ const ListingDetailPage = () => {
 
     const fetchListing = async () => {
         try {
-            const response = await axios.get(`http://localhost:5000/api/listings/${id}`);
+            const response = await axios.get(`${API_BASE_URL}/api/listings/${id}`);
             setListing(response.data);
             if (user && user.wishlist) setIsWishlisted(user.wishlist.includes(id));
         } catch (error) {
@@ -45,7 +46,7 @@ const ListingDetailPage = () => {
 
     const fetchReviews = async () => {
         try {
-            const res = await axios.get(`http://localhost:5000/api/reviews/${id}`);
+            const res = await axios.get(`${API_BASE_URL}/api/reviews/${id}`);
             setReviews(res.data);
         } catch (error) {
             console.error('Error fetching reviews:', error);
@@ -60,7 +61,7 @@ const ListingDetailPage = () => {
     const toggleWishlist = async () => {
         if (!token) return navigate('/login');
         try {
-            const res = await axios.post(`http://localhost:5000/api/auth/wishlist/${id}`, {}, {
+            const res = await axios.post(`${API_BASE_URL}/api/auth/wishlist/${id}`, {}, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             const updatedUser = { ...user, wishlist: res.data.wishlist };
@@ -76,7 +77,7 @@ const ListingDetailPage = () => {
         if (!token) return navigate('/login');
         setBookingLoading(true);
         try {
-            await axios.post('http://localhost:5000/api/bookings', { listingId: id, ...bookingData }, {
+            await axios.post(`${API_BASE_URL}/api/bookings`, { listingId: id, ...bookingData }, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setBookingSuccess(true);
@@ -92,7 +93,7 @@ const ListingDetailPage = () => {
         if (!token) return navigate('/login');
         setReviewLoading(true);
         try {
-            const res = await axios.post('http://localhost:5000/api/reviews', {
+            const res = await axios.post(`${API_BASE_URL}/api/reviews`, {
                 listingId: id,
                 ...newReview
             }, { headers: { Authorization: `Bearer ${token}` } });
@@ -108,7 +109,7 @@ const ListingDetailPage = () => {
     const deleteReview = async (reviewId) => {
         if (!window.confirm('Delete this review?')) return;
         try {
-            await axios.delete(`http://localhost:5000/api/reviews/${reviewId}`, {
+            await axios.delete(`${API_BASE_URL}/api/reviews/${reviewId}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setReviews(reviews.filter(r => r._id !== reviewId));

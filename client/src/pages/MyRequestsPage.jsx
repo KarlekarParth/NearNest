@@ -6,6 +6,7 @@ import {
     Loader2, ArrowRight, MessageSquare, ShieldCheck, Frown
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { API_BASE_URL } from '../config';
 
 const MyRequestsPage = () => {
     const { token } = useAuth();
@@ -15,7 +16,7 @@ const MyRequestsPage = () => {
     const fetchRequests = async () => {
         setLoading(true);
         try {
-            const res = await axios.get('http://localhost:5000/api/bookings/my-requests', {
+            const res = await axios.get(`${API_BASE_URL}/api/bookings/my-requests`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setRequests(res.data);

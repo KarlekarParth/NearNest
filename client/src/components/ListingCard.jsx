@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { MapPin, Users, CheckCircle, Wifi, Coffee, Utensils, Wind, Car, Heart } from 'lucide-react';
+import { API_BASE_URL } from '../config';
 
 const ListingCard = ({ listing }) => {
     const navigate = useNavigate();
@@ -39,7 +40,7 @@ const ListingCard = ({ listing }) => {
 
         setWishlistLoading(true);
         try {
-            const res = await axios.post(`http://localhost:5000/api/auth/wishlist/${_id}`, {}, {
+            const res = await axios.post(`${API_BASE_URL}/api/auth/wishlist/${_id}`, {}, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             

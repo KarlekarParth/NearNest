@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { User, Mail, Phone, Lock, Camera, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { API_BASE_URL } from '../config';
 
 const ProfilePage = () => {
     const { user, token, login } = useAuth();
@@ -50,7 +51,7 @@ const ProfilePage = () => {
             if (formData.password) data.append('password', formData.password);
             if (selectedFile) data.append('profilePic', selectedFile);
 
-            const res = await axios.put('http://localhost:5000/api/auth/profile', data, {
+            const res = await axios.put(`${API_BASE_URL}/api/auth/profile`, data, {
                 headers: { 
                     Authorization: `Bearer ${token}`,
                     'Content-Type': 'multipart/form-data'

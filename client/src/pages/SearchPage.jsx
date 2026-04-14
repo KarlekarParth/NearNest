@@ -5,6 +5,7 @@ import { Search, Filter, Grid, Map as MapIcon, Loader2, Frown } from 'lucide-rea
 import ListingCard from '../components/ListingCard';
 import SkeletonCard from '../components/SkeletonCard';
 import MapView from '../components/MapView';
+import { API_BASE_URL } from '../config';
 
 const SearchPage = () => {
     const [searchParams, setSearchParams] = useSearchParams();
@@ -60,7 +61,7 @@ const SearchPage = () => {
             params.append('page', currentPage);
             params.append('limit', '6'); // 6 for layout mapping
 
-            const response = await axios.get(`http://localhost:5000/api/listings?${params.toString()}`);
+            const response = await axios.get(`${API_BASE_URL}/api/listings?${params.toString()}`);
             const fetchedListings = response.data.listings || response.data;
             
             if (isLoadMore) {

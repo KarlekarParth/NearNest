@@ -11,48 +11,79 @@ const reviewRoutes = require('./routes/reviewRoutes');
 
 const app = express();
 
-// Middleware
-app.use(express.json());
-app.use(cors());
+// =======================
+// ✅ CORS CONFIG (IMPORTANT)
+// =======================
+const allowedOrigins = [
+    'http://localhost:3000',
+    process.env.FRONTEND_URL // Vercel URL
+];
 
-// Routes
+app.use(cors({
+    origin: function (origin, callback) {
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    credentials: true
+}));
+
+// =======================
+// ✅ MIDDLEWARE
+// =======================
+app.use(express.json());
+
+// =======================
+// ✅ ROUTES
+// =======================
 app.use('/api/auth', authRoutes);
 app.use('/api/listings', listingRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/reviews', reviewRoutes);
 
+// Health check route (IMPORTANT for deployment)
 app.get('/', (req, res) => {
-    res.send('NearNest API is running...');
+    res.status(200).json({
+        message: 'NearNest API is running 🚀'
+    });
 });
 
-// Global Error Handler
+// =======================
+// ✅ GLOBAL ERROR HANDLER
+// =======================
 app.use((err, req, res, next) => {
+    console.error(err.stack);
+
     const statusCode = res.statusCode === 200 ? 500 : res.statusCode;
+
     res.status(statusCode).json({
         message: err.message,
         stack: process.env.NODE_ENV === 'production' ? null : err.stack,
     });
 });
 
-// MongoDB Connection
+// =======================
+// ✅ DATABASE CONNECTION
+// =======================
 const PORT = process.env.PORT || 5000;
 const MONGO_URI = process.env.MONGO_URI;
 
 if (!MONGO_URI) {
-    console.warn('Warning: MONGO_URI is not defined in .env file. Server will start but database connection will fail.');
+    console.error('❌ MONGO_URI is missing in environment variables');
+    process.exit(1); // stop server if no DB
 }
 
-mongoose.connect(MONGO_URI || 'mongodb://localhost:27017/nearnest')
+mongoose.connect(MONGO_URI)
     .then(() => {
-        console.log('Connected to MongoDB');
+        console.log('✅ Connected to MongoDB');
+
         app.listen(PORT, () => {
-            console.log(`Server running on port ${PORT}`);
+            console.log(`🚀 Server running on port ${PORT}`);
         });
     })
     .catch(err => {
-        console.error('MongoDB connection error:', err.message);
-        // Still start the server for testing purposes if desired, or handle failure
-        app.listen(PORT, () => {
-            console.log(`Server running on port ${PORT} (Database not connected)`);
-        });
+        console.error('❌ MongoDB connection error:', err.message);
+        process.exit(1); // stop deployment if DB fails
     });

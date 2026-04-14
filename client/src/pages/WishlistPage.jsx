@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import ListingCard from '../components/ListingCard';
 import SkeletonCard from '../components/SkeletonCard';
 import { Heart, Frown, Loader2 } from 'lucide-react';
+import { API_BASE_URL } from '../config';
 
 const WishlistPage = () => {
     const { token } = useAuth();
@@ -13,7 +14,7 @@ const WishlistPage = () => {
     const fetchWishlist = async () => {
         setLoading(true);
         try {
-            const res = await axios.get('http://localhost:5000/api/auth/wishlist', {
+            const res = await axios.get(`${API_BASE_URL}/api/auth/wishlist`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setListings(res.data);
