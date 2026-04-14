@@ -44,7 +44,10 @@ const SearchPage = () => {
 
             const lat = searchParams.get('lat');
             const lng = searchParams.get('lng');
-            if (lat) params.append('lat', lat);
+            if (lat) {
+                params.append('lat', lat);
+                params.append('radius', '5'); // Limit search to 5 km radius
+            }
             if (lng) params.append('lng', lng);
 
             if (filters.type !== 'All') params.append('type', filters.type);
@@ -103,16 +106,23 @@ const SearchPage = () => {
         if (filters.city) {
             newParams.city = filters.city;
             try {
-                // Call Nominatim API for geocoding
-                const nomRes = await axios.get(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(filters.city)}`);
-                if (nomRes.data && nomRes.data.length > 0) {
-                    const { lat, lon } = nomRes.data[0];
-                    newParams.lat = lat;
-                    newParams.lng = lon;
-                    setMapCenter({ lat: parseFloat(lat), lng: parseFloat(lon) });
+                // Call Google Maps API for geocoding
+                const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+                const googlRes = await axios.get(
+                    `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(filters.city)}&key=${apiKey}`
+                );
+                
+                if (googlRes.data && googlRes.data.status === 'OK' && googlRes.data.results.length > 0) {
+                    const location = googlRes.data.results[0].geometry.location;
+                    newParams.lat = location.lat;
+                    newParams.lng = location.lng;
+                    setMapCenter({ lat: location.lat, lng: location.lng });
+                } else {
+                    console.warn("Geocoding failed:", googlRes.data);
+                    alert("Location not found. Please try a different search term or check your API key.");
                 }
             } catch (err) {
-                console.error("Nominatim search failed", err);
+                console.error("Google Maps API search failed", err);
             }
         }
         setSearchParams(newParams);
