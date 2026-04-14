@@ -2,29 +2,26 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Search, Filter, Grid, Map as MapIcon, Loader2, Frown } from 'lucide-react';
-import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from '@react-google-maps/api';
 import ListingCard from '../components/ListingCard';
 import SkeletonCard from '../components/SkeletonCard';
+import MapView from '../components/MapView';
 
 const SearchPage = () => {
     const [searchParams, setSearchParams] = useSearchParams();
     const navigate = useNavigate();
     const [listings, setListings] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [viewMode, setViewMode] = useState('list'); // list or map
-    const [selectedListing, setSelectedListing] = useState(null);
+    const [page, setPage] = useState(1);
+    const [hasMore, setHasMore] = useState(false);
+    const [loadingMore, setLoadingMore] = useState(false);
 
-    // Dynamic Map Center
-    const [mapCenter, setMapCenter] = useState({ lat: 18.5204, lng: 73.8567 }); // Defaults to Pune
-
-    // Google Maps Loader
-    const { isLoaded } = useJsApiLoader({
-        id: 'google-map-script',
-        googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY
+    // Dynamic Map Center - initialize from URL if available, otherwise default to Pune
+    const urlLat = searchParams.get('lat');
+    const urlLng = searchParams.get('lng');
+    const [mapCenter, setMapCenter] = useState({ 
+        lat: urlLat ? parseFloat(urlLat) : 18.5204, 
+        lng: urlLng ? parseFloat(urlLng) : 73.8567 
     });
-
-    const mapContainerStyle = { width: '100%', height: '600px' };
-
     // Filter States
     const [filters, setFilters] = useState({
         city: searchParams.get('city') || '',
@@ -37,28 +34,50 @@ const SearchPage = () => {
 
     const amenitiesOptions = ['Wi-Fi', 'Food', 'Laundry', 'AC', 'Parking'];
 
-    const fetchListings = async () => {
-        setLoading(true);
+    const fetchListings = async (isLoadMore = false) => {
+        if (!isLoadMore) setLoading(true);
+        else setLoadingMore(true);
+
         try {
             const params = new URLSearchParams();
             if (filters.city) params.append('city', filters.city);
+
+            const lat = searchParams.get('lat');
+            const lng = searchParams.get('lng');
+            if (lat) params.append('lat', lat);
+            if (lng) params.append('lng', lng);
+
             if (filters.type !== 'All') params.append('type', filters.type);
             if (filters.gender !== 'All') params.append('gender', filters.gender);
             if (filters.minRent) params.append('minRent', filters.minRent);
             if (filters.maxRent) params.append('maxRent', filters.maxRent);
             if (filters.amenities.length > 0) params.append('amenities', filters.amenities.join(','));
 
-            const response = await axios.get(`http://localhost:5000/api/listings?${params.toString()}`);
-            setListings(response.data);
+            const currentPage = isLoadMore ? page + 1 : 1;
+            params.append('page', currentPage);
+            params.append('limit', '6'); // 6 for layout mapping
 
-            // Re-center map if results found
-            if (response.data.length > 0 && response.data[0].location) {
-                setMapCenter(response.data[0].location);
+            const response = await axios.get(`http://localhost:5000/api/listings?${params.toString()}`);
+            const fetchedListings = response.data.listings || response.data;
+            
+            if (isLoadMore) {
+                setListings(prev => [...prev, ...fetchedListings]);
+                setPage(currentPage);
+            } else {
+                setListings(fetchedListings);
+                setPage(1);
+                if (fetchedListings.length > 0 && fetchedListings[0].location) {
+                    setMapCenter(fetchedListings[0].location);
+                }
             }
+            
+            setHasMore(response.data.hasMore || false);
+
         } catch (error) {
             console.error('Error fetching listings:', error);
         } finally {
             setLoading(false);
+            setLoadingMore(false);
         }
     };
 
@@ -79,9 +98,23 @@ const SearchPage = () => {
         });
     };
 
-    const applyFilters = () => {
+    const applyFilters = async () => {
         const newParams = {};
-        if (filters.city) newParams.city = filters.city;
+        if (filters.city) {
+            newParams.city = filters.city;
+            try {
+                // Call Nominatim API for geocoding
+                const nomRes = await axios.get(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(filters.city)}`);
+                if (nomRes.data && nomRes.data.length > 0) {
+                    const { lat, lon } = nomRes.data[0];
+                    newParams.lat = lat;
+                    newParams.lng = lon;
+                    setMapCenter({ lat: parseFloat(lat), lng: parseFloat(lon) });
+                }
+            } catch (err) {
+                console.error("Nominatim search failed", err);
+            }
+        }
         setSearchParams(newParams);
         fetchListings();
     };
@@ -210,20 +243,11 @@ const SearchPage = () => {
                             <h1 className="text-3xl font-black text-[#1e3a5f] tracking-tight">Available Stays</h1>
                             <p className="text-gray-400 font-medium text-sm">{loading ? 'Searching...' : `${listings.length} properties found`}</p>
                         </div>
-                        <div className="bg-white p-1.5 rounded-2xl shadow-sm border border-gray-100 flex gap-1 shrink-0">
-                            <button 
-                                onClick={() => setViewMode('list')}
-                                className={`p-2.5 rounded-xl transition-all ${viewMode === 'list' ? 'bg-blue-50 text-[#3b82f6]' : 'text-gray-400 hover:bg-gray-50'}`}
-                            >
-                                <Grid size={20} />
-                            </button>
-                            <button 
-                                onClick={() => setViewMode('map')}
-                                className={`p-2.5 rounded-xl transition-all ${viewMode === 'map' ? 'bg-blue-50 text-[#3b82f6]' : 'text-gray-400 hover:bg-gray-50'}`}
-                            >
-                                <MapIcon size={20} />
-                            </button>
-                        </div>
+                    </div>
+
+                    {/* Map placed above listings */}
+                    <div className="mb-8">
+                        <MapView lat={mapCenter.lat} lng={mapCenter.lng} properties={listings} />
                     </div>
 
                     {/* Results Content */}
@@ -231,13 +255,27 @@ const SearchPage = () => {
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
                             {[...Array(6)].map((_, i) => <SkeletonCard key={i} />)}
                         </div>
-                    ) : viewMode === 'list' ? (
+                    ) : (
                         listings.length > 0 ? (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
-                                {listings.map(listing => (
-                                    <ListingCard key={listing._id} listing={listing} />
-                                ))}
-                            </div>
+                            <>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+                                    {listings.map(listing => (
+                                        <ListingCard key={listing._id} listing={listing} />
+                                    ))}
+                                </div>
+                                {hasMore && (
+                                    <div className="flex justify-center mt-12">
+                                        <button 
+                                            onClick={() => fetchListings(true)}
+                                            disabled={loadingMore}
+                                            className="bg-white border-2 border-[#1e3a5f] text-[#1e3a5f] px-10 py-4 rounded-xl font-black uppercase tracking-widest text-xs hover:bg-[#1e3a5f] hover:text-white transition-all shadow-md active:scale-95 flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            {loadingMore ? <Loader2 size={18} className="animate-spin" /> : <Grid size={18} />}
+                                            {loadingMore ? 'Loading More...' : 'Load More Stays'}
+                                        </button>
+                                    </div>
+                                )}
+                            </>
                         ) : (
                             <div className="flex flex-col items-center justify-center py-20 text-center gap-6 bg-white rounded-[40px] border border-dashed border-gray-200">
                                 <div className="bg-gray-50 p-8 rounded-full">
@@ -253,47 +291,6 @@ const SearchPage = () => {
                                 >
                                     Clear all filters
                                 </button>
-                            </div>
-                        )
-                    ) : (
-                        isLoaded ? (
-                            <div className="bg-white rounded-[40px] overflow-hidden shadow-inner border border-gray-100">
-                                <GoogleMap
-                                    mapContainerStyle={mapContainerStyle}
-                                    center={mapCenter}
-                                    zoom={13}
-                                >
-                                    {listings.map(listing => (
-                                        <Marker 
-                                            key={listing._id}
-                                            position={listing.location}
-                                            onClick={() => setSelectedListing(listing)}
-                                        />
-                                    ))}
-
-                                    {selectedListing && (
-                                        <InfoWindow
-                                            position={selectedListing.location}
-                                            onCloseClick={() => setSelectedListing(null)}
-                                        >
-                                            <div className="p-2 max-w-[200px]">
-                                                <h3 className="font-bold text-[#1e3a5f]">{selectedListing.title}</h3>
-                                                <p className="text-[#3b82f6] font-black text-lg">₹{selectedListing.rent}</p>
-                                                <button 
-                                                    onClick={() => navigate(`/listing/${selectedListing._id}`)}
-                                                    className="mt-2 text-xs font-bold text-blue-500 underline"
-                                                >
-                                                    View Details
-                                                </button>
-                                            </div>
-                                        </InfoWindow>
-                                    )}
-                                </GoogleMap>
-                            </div>
-                        ) : (
-                            <div className="flex flex-col items-center justify-center py-20 gap-4 text-gray-400">
-                                <Loader2 className="animate-spin" size={48} />
-                                <p className="font-bold">Loading Google Maps...</p>
                             </div>
                         )
                     )}

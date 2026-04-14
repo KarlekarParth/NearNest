@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import PickerMap from '../components/PickerMap';
 import { 
     LayoutGrid, PlusCircle, Trash2, Edit3, CheckCircle, 
     XCircle, Loader2, MapPin, IndianRupee, Image as ImageIcon, 
@@ -91,7 +92,15 @@ const OwnerDashboardPage = () => {
     };
 
     const handleEditStart = (listing) => {
-        setFormData({ ...listing, photos: [] }); // Start with empty file list for new uploads
+        let extractedLocation = { lat: 18.5204, lng: 73.8567 };
+        if (listing.location) {
+            if (listing.location.coordinates && Array.isArray(listing.location.coordinates)) {
+                extractedLocation = { lat: listing.location.coordinates[1], lng: listing.location.coordinates[0] };
+            } else if (listing.location.lat !== undefined) {
+                extractedLocation = listing.location;
+            }
+        }
+        setFormData({ ...listing, location: extractedLocation, photos: [] }); // Start with empty file list for new uploads
         setPreviews(listing.photos || []); // Show existing photos as previews
         setEditingId(listing._id);
         setActiveTab('add-edit');
@@ -127,7 +136,12 @@ const OwnerDashboardPage = () => {
         try {
             const data = new FormData();
             Object.keys(formData).forEach(key => {
-                if (key === 'location' || key === 'amenities') {
+                if (key === 'location') {
+                    data.append(key, JSON.stringify({
+                        type: 'Point',
+                        coordinates: [formData.location.lng, formData.location.lat]
+                    }));
+                } else if (key === 'amenities') {
                     data.append(key, JSON.stringify(formData[key]));
                 } else if (key === 'photos') {
                     // Only append actual File objects
@@ -285,6 +299,13 @@ const OwnerDashboardPage = () => {
                             <div className="bg-white p-12 rounded-[50px] shadow-sm border border-gray-100 space-y-8">
                                 <h3 className="text-xs font-black text-gray-300 uppercase tracking-[0.4em] flex items-center gap-2"><MapPin size={16} /> II. Location Sync</h3>
                                 <div className="grid md:grid-cols-2 gap-8"><div className="space-y-2"><label className="text-[10px] font-black text-[#1e3a5f] uppercase tracking-widest">Address</label><input type="text" name="address" required className="w-full bg-gray-50/50 border-none rounded-2xl p-5 text-sm font-bold outline-none" value={formData.address} onChange={handleInputChange} /></div><div className="space-y-2"><label className="text-[10px] font-black text-[#1e3a5f] uppercase tracking-widest">City</label><input type="text" name="city" required className="w-full bg-gray-50/50 border-none rounded-2xl p-5 text-sm font-bold outline-none" value={formData.city} onChange={handleInputChange} /></div></div>
+                                
+                                {/* Location Picker map integration */}
+                                <div className="space-y-4 pt-4 border-t border-gray-50">
+                                    <label className="text-[10px] font-black text-[#1e3a5f] uppercase tracking-widest block">Pinpoint Exact Coordinates</label>
+                                    <PickerMap location={formData.location} setLocation={(loc) => setFormData({ ...formData, location: loc })} />
+                                    <p className="text-xs font-bold text-gray-400 italic">Click anywhere on the map to accurately place your property marker. Current Coordinates: {formData.location?.lat?.toFixed(4)}, {formData.location?.lng?.toFixed(4)}</p>
+                                </div>
                             </div>
 
                             <div className="bg-[#1e3a5f] p-12 rounded-[50px] shadow-2xl space-y-10 text-white relative overflow-hidden">

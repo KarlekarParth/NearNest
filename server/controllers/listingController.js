@@ -1,43 +1,6 @@
 const Listing = require('../models/Listing');
 
-// Known landmarks/colleges in Pune with their coordinates
-const KNOWN_LOCATIONS = {
-    'pict': { lat: 18.4575, lng: 73.8508, name: 'PICT Dhankawadi' },
-    'pict college': { lat: 18.4575, lng: 73.8508, name: 'PICT Dhankawadi' },
-    'bharati vidyapeeth': { lat: 18.4555, lng: 73.8488, name: 'Bharati Vidyapeeth' },
-    'mit': { lat: 18.5164, lng: 73.8074, name: 'MIT Kothrud' },
-    'mit college': { lat: 18.5164, lng: 73.8074, name: 'MIT Kothrud' },
-    'coep': { lat: 18.5290, lng: 73.8503, name: 'COEP Shivajinagar' },
-    'fergusson': { lat: 18.5236, lng: 73.8395, name: 'Fergusson College' },
-    'fergusson college': { lat: 18.5236, lng: 73.8395, name: 'Fergusson College' },
-    'symbiosis': { lat: 18.5620, lng: 73.9100, name: 'Symbiosis Viman Nagar' },
-    'infosys': { lat: 18.5880, lng: 73.7350, name: 'Infosys Hinjewadi' },
-    'wipro': { lat: 18.5850, lng: 73.7420, name: 'Wipro Hinjewadi' },
-    'tcs': { lat: 18.5913, lng: 73.7389, name: 'TCS Hinjewadi' },
-    'pune university': { lat: 18.5564, lng: 73.8236, name: 'Savitribai Phule Pune University' },
-    'sppu': { lat: 18.5564, lng: 73.8236, name: 'SPPU' },
-    'pune station': { lat: 18.5285, lng: 73.8743, name: 'Pune Railway Station' },
-    'sinhgad': { lat: 18.4738, lng: 73.8135, name: 'Sinhgad College' },
-    'sinhgad college': { lat: 18.4738, lng: 73.8135, name: 'Sinhgad College' },
-    'jspm': { lat: 18.5050, lng: 73.9310, name: 'JSPM Hadapsar' },
-    'magarpatta': { lat: 18.5020, lng: 73.9260, name: 'Magarpatta City' },
-    'phoenix mall': { lat: 18.5679, lng: 73.9143, name: 'Phoenix Mall Viman Nagar' },
-    'hinjewadi': { lat: 18.5913, lng: 73.7389, name: 'Hinjewadi IT Park' },
-    'baner': { lat: 18.5590, lng: 73.7820, name: 'Baner' },
-    'wakad': { lat: 18.5990, lng: 73.7630, name: 'Wakad' },
-    'aundh': { lat: 18.5590, lng: 73.8070, name: 'Aundh' },
-    'kothrud': { lat: 18.5074, lng: 73.8077, name: 'Kothrud' },
-    'hadapsar': { lat: 18.5020, lng: 73.9260, name: 'Hadapsar' },
-    'katraj': { lat: 18.4522, lng: 73.8545, name: 'Katraj' },
-    'kondhwa': { lat: 18.4670, lng: 73.8910, name: 'Kondhwa' },
-    'dhankawadi': { lat: 18.4575, lng: 73.8508, name: 'Dhankawadi' },
-    'warje': { lat: 18.4870, lng: 73.8080, name: 'Warje' },
-    'shivajinagar': { lat: 18.5310, lng: 73.8450, name: 'Shivajinagar' },
-    'viman nagar': { lat: 18.5679, lng: 73.9143, name: 'Viman Nagar' },
-    'nibm': { lat: 18.4670, lng: 73.8910, name: 'NIBM Road' },
-    'deccan': { lat: 18.5180, lng: 73.8400, name: 'Deccan Gymkhana' },
-    'fc road': { lat: 18.5240, lng: 73.8410, name: 'FC Road' },
-};
+
 
 // Haversine formula to calculate distance between two coordinates in km
 function getDistanceKm(lat1, lng1, lat2, lng2) {
@@ -57,30 +20,21 @@ function getDistanceKm(lat1, lng1, lat2, lng2) {
 // @access  Public
 exports.getListings = async (req, res) => {
     try {
-        const { city, type, gender, minRent, maxRent, amenities, lat, lng, radius } = req.query;
+        const { city, type, gender, minRent, maxRent, amenities, lat, lng, radius, page = 1, limit = 8 } = req.query;
         let query = {};
 
-        // Check if city matches a known landmark for proximity search
+        // Proximity search logic uses lat/lng if provided
         let searchLat = lat ? parseFloat(lat) : null;
         let searchLng = lng ? parseFloat(lng) : null;
-        let searchRadius = radius ? parseFloat(radius) : 5; // default 5km
+        let searchRadius = radius ? parseFloat(radius) : 10; // default 10km
 
-        if (city) {
-            const normalizedCity = city.toLowerCase().trim();
-            const knownLocation = KNOWN_LOCATIONS[normalizedCity];
-            
-            if (knownLocation) {
-                // Use known location's coordinates for proximity search
-                searchLat = knownLocation.lat;
-                searchLng = knownLocation.lng;
-            } else {
-                // Fallback: text-based search on city and address fields
-                query.$or = [
-                    { city: new RegExp(city, 'i') },
-                    { address: new RegExp(city, 'i') },
-                    { title: new RegExp(city, 'i') }
-                ];
-            }
+        // Fallback: text-based search on city and address fields if lat/lng not provided
+        if (city && (!searchLat || !searchLng)) {
+            query.$or = [
+                { city: new RegExp(city, 'i') },
+                { address: new RegExp(city, 'i') },
+                { title: new RegExp(city, 'i') }
+            ];
         }
 
         if (type) query.type = type;
@@ -99,10 +53,14 @@ exports.getListings = async (req, res) => {
             }
         }
 
-        let listings = await Listing.find(query).sort({ createdAt: -1 });
+        const pageNum = parseInt(page, 10);
+        const limitNum = parseInt(limit, 10);
+        const skip = (pageNum - 1) * limitNum;
 
         // If we have coordinates, calculate distance and sort by proximity
         if (searchLat && searchLng) {
+            let listings = await Listing.find(query).sort({ createdAt: -1 });
+
             listings = listings.map(listing => {
                 const listingObj = listing.toObject();
                 if (listingObj.location && listingObj.location.lat && listingObj.location.lng) {
@@ -116,14 +74,36 @@ exports.getListings = async (req, res) => {
                 return listingObj;
             });
 
-            // Filter by radius
+            // Filter by radius and sort by nearest first
             listings = listings.filter(l => l.distance <= searchRadius);
-
-            // Sort by nearest first
             listings.sort((a, b) => a.distance - b.distance);
-        }
 
-        res.json(listings);
+            // Manual Slicing for Pagination since we did in-memory sort
+            const total = listings.length;
+            const endIndex = pageNum * limitNum;
+            const paginatedListings = listings.slice(skip, endIndex);
+
+            return res.json({
+                listings: paginatedListings,
+                total,
+                page: pageNum,
+                hasMore: endIndex < total
+            });
+        } else {
+            // Standard search without coordinates - Use purely MongoDB skip/limit
+            const total = await Listing.countDocuments(query);
+            const listings = await Listing.find(query)
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limitNum);
+
+            return res.json({
+                listings,
+                total,
+                page: pageNum,
+                hasMore: skip + listings.length < total
+            });
+        }
     } catch (error) {
         res.status(500).json({ message: 'Server error', error: error.message });
     }
