@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const sendEmail = require('../utils/sendEmail');
 
 // Generate JWT
 const generateToken = (id) => {
@@ -16,25 +17,95 @@ exports.register = async (req, res) => {
     const { name, email, password, role } = req.body;
 
     try {
-        // Check if user exists
         let user = await User.findOne({ email });
+        
+        // Generate a 6-digit OTP
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes from now
+
         if (user) {
-            return res.status(400).json({ message: 'User already exists' });
+            if (user.isVerified) {
+                return res.status(400).json({ message: 'User already exists and is verified. Please login.' });
+            } else {
+                // Update unverified user with new OTP
+                const salt = await bcrypt.genSalt(10);
+                user.password = await bcrypt.hash(password, salt);
+                user.name = name;
+                user.role = role || user.role;
+                user.otp = otp;
+                user.otpExpires = otpExpires;
+                await user.save();
+            }
+        } else {
+            // Create new unverified user
+            const salt = await bcrypt.genSalt(10);
+            const hashedPassword = await bcrypt.hash(password, salt);
+
+            user = await User.create({
+                name,
+                email,
+                password: hashedPassword,
+                role,
+                otp,
+                otpExpires,
+                isVerified: false
+            });
         }
 
-        // Hash password
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(password, salt);
-
-        // Create user
-        user = await User.create({
-            name,
-            email,
-            password: hashedPassword,
-            role
-        });
+        // Send OTP via email
+        try {
+            await sendEmail({
+                email: user.email,
+                subject: 'NearNest - Verify Your Email',
+                message: `Your verification OTP is: ${otp}\n\nIt expires in 10 minutes.`
+            });
+        } catch (emailError) {
+            console.error("Email sending failed", emailError);
+            // We might still want to return 201 so frontend shows OTP input (for testing if email fails)
+            // Or return 500 if email is strictly required. For now, let's just log and continue
+        }
 
         res.status(201).json({
+            message: 'OTP sent to your email. Please verify to continue.',
+            email: user.email
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
+// @desc    Verify OTP
+// @route   POST /api/auth/verify-otp
+// @access  Public
+exports.verifyOtp = async (req, res) => {
+    const { email, otp } = req.body;
+
+    try {
+        const user = await User.findOne({ email });
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        if (user.isVerified) {
+            return res.status(400).json({ message: 'User already verified' });
+        }
+
+        if (user.otp !== otp) {
+            return res.status(400).json({ message: 'Invalid OTP' });
+        }
+
+        if (user.otpExpires < Date.now()) {
+            return res.status(400).json({ message: 'OTP has expired' });
+        }
+
+        // OTP is valid, mark as verified
+        user.isVerified = true;
+        user.otp = undefined;
+        user.otpExpires = undefined;
+        await user.save();
+
+        res.json({
             user: {
                 _id: user._id,
                 name: user.name,
@@ -43,6 +114,44 @@ exports.register = async (req, res) => {
             },
             token: generateToken(user._id)
         });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
+// @desc    Resend OTP
+// @route   POST /api/auth/resend-otp
+// @access  Public
+exports.resendOtp = async (req, res) => {
+    const { email } = req.body;
+
+    try {
+        const user = await User.findOne({ email });
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        if (user.isVerified) {
+            return res.status(400).json({ message: 'User already verified' });
+        }
+
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        user.otp = otp;
+        user.otpExpires = new Date(Date.now() + 10 * 60 * 1000);
+        await user.save();
+
+        try {
+            await sendEmail({
+                email: user.email,
+                subject: 'NearNest - Your New OTP',
+                message: `Your new verification OTP is: ${otp}\n\nIt expires in 10 minutes.`
+            });
+        } catch (emailError) {
+            console.error("Email sending failed", emailError);
+        }
+
+        res.json({ message: 'A new OTP has been sent to your email.' });
     } catch (error) {
         res.status(500).json({ message: 'Server error', error: error.message });
     }
@@ -59,6 +168,11 @@ exports.login = async (req, res) => {
         const user = await User.findOne({ email });
         if (!user) {
             return res.status(401).json({ message: 'Invalid credentials' });
+        }
+
+        // Check if user is verified
+        if (!user.isVerified) {
+            return res.status(401).json({ message: 'Please verify your email before logging in.' });
         }
 
         // Check password

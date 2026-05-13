@@ -1,7 +1,9 @@
 const express = require('express');
 const { 
     register, 
-    login, 
+    login,
+    verifyOtp,
+    resendOtp,
     updateProfile, 
     toggleWishlist, 
     getWishlist 
@@ -12,6 +14,8 @@ const router = express.Router();
 
 router.post('/register', register);
 router.post('/login', login);
+router.post('/verify-otp', verifyOtp);
+router.post('/resend-otp', resendOtp);
 
 // Private Routes
 router.put('/profile', protect, upload.single('profilePic'), updateProfile);
